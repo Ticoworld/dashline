@@ -6,22 +6,50 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "smoke": "npm run typecheck && npm run build",
+    "seed": "prisma db seed",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.33.6",
+    "@prisma/client": "^6.17.1",
+    "@radix-ui/react-select": "^2.2.6",
+  "@tanstack/react-query": "^5.59.18",
+    "@trpc/client": "^11.6.0",
+    "@trpc/next": "^11.6.0",
+    "@trpc/react-query": "^11.6.0",
+    "@trpc/server": "^11.6.0",
+    "axios": "^1.12.2",
+    "lucide-react": "^0.546.0",
+  "next": "15.5.6",
+  "ethers": "^6.13.2",
+    "prisma": "^6.17.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.6"
+    "recharts": "^3.3.0",
+    "zod": "^3.23.8"
+  },
+  "optionalDependencies": {
+    "ioredis": "^5.3.2"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "autoprefixer": "^10.4.21",
     "eslint": "^9",
     "eslint-config-next": "15.5.6",
-    "@eslint/eslintrc": "^3"
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5",
+    "vitest": "^2.1.9"
   }
 }

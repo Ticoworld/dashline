@@ -1,0 +1,12 @@
+{
+	"ethereum": {
+		"uniswap_v2": "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
+		"uniswap_v3": "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3"
+	},
+	"polygon": {
+		"quickswap_v2": "https://api.thegraph.com/subgraphs/name/sameepsi/quickswap06"
+	},
+	"base": {
+		"uniswap_v3": "https://api.studio.thegraph.com/query/24804/uniswap-v3-base/version/latest"
+	}
+}

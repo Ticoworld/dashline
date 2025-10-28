@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id               String         @id @default(cuid())
+  clerkId          String         @unique  // Clerk user ID
+  email            String         @unique
+  name             String?
+  imageUrl         String?
+
+  // Subscription
+  plan             Plan           @default(FREE)
+  stripeCustomerId String?
+
+  // Relationships
+  projects         Project[]
+  settings         UserSettings?
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([clerkId])
+  @@index([email])
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+model UserSettings {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Preferences
+  theme              String   @default("dark")
+  emailNotifications Boolean  @default(true)
+  weeklyDigest       Boolean  @default(true)
+
+  // Default dashboard settings
+  defaultTimeRange   String   @default("7d")
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// ============================================
+// PROJECTS (User's tracked tokens/NFTs)
+// ============================================
+
+model Project {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Contract info
+  contractAddress String
+  chain           String   // "ethereum", "polygon", "base", etc.
+  name            String
+  symbol          String
+  tokenStandard   String   // "ERC20", "ERC721", "ERC1155"
+
+  // Display
+  logoUrl         String?
+  description     String?
+
+  // Metadata
+  isActive        Boolean  @default(true)
+  lastSyncedAt    DateTime @default(now())
+
+  // Relationships
+  metrics         MetricSnapshot[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, contractAddress, chain]) // User can't add same contract twice
+  @@index([userId])
+  @@index([contractAddress])
+}
+
+// ============================================
+// METRICS (Cached/Historical Data)
+// ============================================
+
+model MetricSnapshot {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  metric      String
+  value       Json
+  source      String
+  dataEmpty   Boolean  @default(false)
+
+  collectedAt DateTime @default(now())
+  ttlMinutes  Int      @default(60)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([projectId, metric])
+  @@index([metric, collectedAt])
+  @@index([projectId, collectedAt])
+}
+
+// ============================================
+// API USAGE TRACKING (for rate limiting/billing)
+// ============================================
+
+model ApiUsage {
+  id           String   @id @default(cuid())
+  userId       String
+
+  // API call details
+  endpoint     String   // "dune", "covalent", "coingecko"
+  requestCount Int      @default(0)
+
+  // Billing period
+  periodStart  DateTime
+  periodEnd    DateTime
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, endpoint, periodStart])
+  @@index([userId])
+}
+
+// ============================================
+// CACHE METADATA (optional - for Redis strategy)
+// ============================================
+
+model CacheEntry {
+  id             String   @id @default(cuid())
+  key            String   @unique  // "holders:projectId:timeRange"
+
+  // Cache info
+  expiresAt      DateTime
+  hitCount       Int      @default(0)
+
+  createdAt      DateTime @default(now())
+  lastAccessedAt DateTime @default(now())
+
+  @@index([expiresAt])
+}

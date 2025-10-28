@@ -1,0 +1,347 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Next.js dev server",
+			"type": "shell",
+			"command": "npm run dev",
+			"args": [],
+			"isBackground": true,
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Next.js dev server",
+			"type": "shell",
+			"command": "npm run dev",
+			"args": [],
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Next.js dev server",
+			"type": "shell",
+			"command": "npm run dev",
+			"args": [],
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc",
+				"$eslint - stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc",
+				"$eslint - stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Prisma migrate & seed (dev)",
+			"type": "shell",
+			"command": "npx prisma migrate deploy && npx prisma db seed",
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Prisma migrate & seed (dev)",
+			"type": "shell",
+			"command": "npx prisma migrate deploy && npx prisma db seed",
+			"group": "build"
+		},
+		{
+			"label": "Prisma migrate & seed (dev)",
+			"type": "shell",
+			"command": "npx prisma migrate deploy && npx prisma db seed"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}
