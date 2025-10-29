@@ -2,7 +2,6 @@ import axios from "axios";
 import { withRateLimit } from "./rateLimiter";
 import { metrics } from "./observability";
 import { dexscreenerService } from "./dexscreenerService";
-import { bitqueryService, BitqueryTopHolder } from "./bitqueryService";
 
 // Lightweight ethers v6 import (optional at runtime)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,7 +31,7 @@ export type TopHolder = {
 export type HoldersSummary = {
   topHolders: TopHolder[];
   totalHolders: number;
-  source: "bitquery" | "moralis" | "mock" | "etherscan";
+  source: "moralis" | "mock" | "etherscan";
   lastUpdatedAt: string; // ISO
   partial?: boolean; // true if provider limited
 };
@@ -93,57 +92,117 @@ async function moralisTopHolders(
   chain: string,
   pageSize = 500
 ): Promise<{ holders: Array<{ address: string; balance: bigint }>; totalHolders: number } | null> {
-  const key = process.env.MORALIS_API_KEY;
-  if (!key) return null;
-  const { moralis } = normalizeChain(chain);
-  const base = `https://deep-index.moralis.io/api/v2.2/erc20/${contract}/holders`;
-  let cursor: string | null = null;
-  const holders = new Map<string, bigint>();
-  let pages = 0;
-  while (true) {
-    const url = new URL(base);
-    url.searchParams.set("chain", moralis);
-    url.searchParams.set("limit", String(pageSize));
-    if (cursor) url.searchParams.set("cursor", cursor);
-    const data = await withRateLimit("moralis", async () => {
-      const t0 = Date.now();
-      try {
-        const r = await axios.get(url.toString(), { headers: { "X-API-Key": key }, timeout: 15000 });
-        metrics.inc("providers.moralis.calls");
-        const latency = Date.now() - t0;
-        metrics.inc(`providers.moralis.latency_ms.${Math.min(1000, Math.ceil(latency / 100) * 100)}`);
-        return r.data;
-      } catch (e) {
-        metrics.inc("providers.moralis.errors");
-        throw e;
-      }
-    });
-    const items: Array<{ address?: string; balance?: string | number }> = data?.result ?? data?.items ?? [];
-    for (const it of items) {
-      const addr = String(it?.address ?? "").toLowerCase();
-      if (!addr) continue;
-      const v = BigInt(it?.balance ?? 0);
-      holders.set(addr, (holders.get(addr) ?? BigInt(0)) + v);
+  try {
+    const key = process.env.MORALIS_API_KEY;
+    if (!key) {
+      console.log("[moralisTopHolders] No MORALIS_API_KEY found");
+      return null;
     }
-    cursor = data?.cursor ?? data?.next ?? null;
-    pages++;
-    if (!cursor || pages > 200) break; // safety cap
+    const { moralis } = normalizeChain(chain);
+    // Use /owners endpoint (correct Moralis v2.2 endpoint)
+    const base = `https://deep-index.moralis.io/api/v2.2/erc20/${contract}/owners`;
+    console.log(`[moralisTopHolders] Fetching holders for ${contract} on ${moralis}`);
+    let cursor: string | null = null;
+    const holders = new Map<string, bigint>();
+    let pages = 0;
+    while (true) {
+      const url = new URL(base);
+      url.searchParams.set("chain", moralis);
+      url.searchParams.set("limit", String(Math.min(pageSize, 100))); // Moralis max is 100
+      if (cursor) url.searchParams.set("cursor", cursor);
+      console.log(`[moralisTopHolders] Requesting URL: ${url.toString()}`);
+      const data = await withRateLimit("moralis", async () => {
+        const t0 = Date.now();
+        try {
+          const r = await axios.get(url.toString(), { headers: { "X-API-Key": key }, timeout: 15000 });
+          metrics.inc("providers.moralis.calls");
+          const latency = Date.now() - t0;
+          metrics.inc(`providers.moralis.latency_ms.${Math.min(1000, Math.ceil(latency / 100) * 100)}`);
+          console.log(`[moralisTopHolders] API Response status: ${r.status}`);
+          return r.data;
+        } catch (e) {
+          console.error("[moralisTopHolders] API Error:", e);
+          if (axios.isAxiosError(e)) {
+            console.error("[moralisTopHolders] Response status:", e.response?.status);
+            console.error("[moralisTopHolders] Response data:", e.response?.data);
+          }
+          metrics.inc("providers.moralis.errors");
+          throw e;
+        }
+      });
+      // Moralis API returns 'result' array with 'owner_address' and 'balance_formatted' fields
+      const items: Array<{ owner_address?: string; address?: string; balance?: string | number; balance_formatted?: string }> = data?.result ?? data?.items ?? [];
+      console.log(`[moralisTopHolders] Page ${pages + 1}: received ${items.length} items`);
+      if (pages === 0 && items.length > 0) {
+        console.log(`[moralisTopHolders] Sample item:`, JSON.stringify(items[0]));
+      }
+      if (pages === 0 && items.length === 0) {
+        console.warn(`[moralisTopHolders] First page returned 0 items. Full response:`, JSON.stringify(data));
+      }
+      for (const it of items) {
+        // Moralis uses 'owner_address' in newer API versions
+        const addr = String(it?.owner_address ?? it?.address ?? "").toLowerCase();
+        if (!addr) continue;
+        const v = BigInt(it?.balance ?? 0);
+        holders.set(addr, (holders.get(addr) ?? BigInt(0)) + v);
+      }
+      cursor = data?.cursor ?? data?.next ?? null;
+      pages++;
+      if (!cursor || pages > 200) break; // safety cap
+    }
+    console.log(`[moralisTopHolders] Collected ${holders.size} unique holders from ${pages} pages`);
+    const out = Array.from(holders.entries())
+      .map(([address, balance]) => ({ address, balance }))
+      .sort((a, b) => (a.balance === b.balance ? 0 : a.balance > b.balance ? -1 : 1));
+    return { holders: out, totalHolders: holders.size };
+  } catch (err) {
+    console.error("[moralisTopHolders] Unexpected error:", err);
+    if (err instanceof Error) {
+      console.error("[moralisTopHolders] Error message:", err.message);
+      console.error("[moralisTopHolders] Error stack:", err.stack);
+    }
+    return null;
   }
-  const out = Array.from(holders.entries())
-    .map(([address, balance]) => ({ address, balance }))
-    .sort((a, b) => (a.balance === b.balance ? 0 : a.balance > b.balance ? -1 : 1));
-  return { holders: out, totalHolders: holders.size };
 }
 
-// Compute shares from normalized balances (numbers) and normalized supply (number).
+// Compute shares from holders and supply. Supports two call styles for compatibility:
+// 1) New style: balances already normalized to token units (number)
+//    calcShares(holdersNorm: {address, balance:number}[], totalSupplyRaw: bigint, decimals: number, lps)
+// 2) Old style (tests): balances in raw units (bigint), with decimals first
+//    calcShares(holdersRaw: {address, balance:bigint}[], decimals: number, totalSupplyRaw: bigint, lps)
 function calcShares(
-  holdersNorm: Array<{ address: string; balance: number }>,
+  holders: Array<{ address: string; balance: number }>,
   totalSupplyRaw: bigint,
   decimals: number,
   lpAddresses: Set<string>
+): { top: TopHolder[]; sumBurn: number; sumLP: number };
+function calcShares(
+  holders: Array<{ address: string; balance: bigint }>,
+  decimals: number,
+  totalSupplyRaw: bigint,
+  lpAddresses: Set<string>
+): { top: TopHolder[]; sumBurn: number; sumLP: number };
+function calcShares(
+  holdersAny: Array<{ address: string; balance: number | bigint }>,
+  arg2: number | bigint,
+  arg3: number | bigint,
+  lpAddresses: Set<string>
 ): { top: TopHolder[]; sumBurn: number; sumLP: number } {
+  // Determine which overload was used
+  const usedOldStyle = typeof arg2 === "number" && typeof arg3 === "bigint";
+  const decimals: number = usedOldStyle ? (arg2 as number) : (arg3 as number);
+  const totalSupplyRaw: bigint = usedOldStyle ? (arg3 as bigint) : (arg2 as bigint);
+
   const denom = Number(BigInt(10) ** BigInt(Math.max(0, decimals)));
   const totalSupplyNorm = denom > 0 ? Number(totalSupplyRaw) / denom : 0;
+
+  // Normalize holder balances to numbers (token units)
+  const holdersNorm: Array<{ address: string; balance: number }> = holdersAny.map((h) => {
+    if (typeof h.balance === "bigint") {
+      return { address: h.address, balance: denom > 0 ? Number(h.balance) / denom : 0 };
+    }
+    return { address: h.address, balance: h.balance };
+  });
 
   let sumBurn = 0;
   let sumLP = 0;
@@ -191,43 +250,22 @@ export const holdersService = {
     let source: HoldersSummary["source"] = "mock";
     const partial = false;
 
-    // Determine provider priority order
-    const priority = (process.env.PROVIDERS_PRIORITY_HOLDERS ?? "bitquery,moralis")
+    // Use Moralis only (BitQuery removed due to billing issues)
+    const priority = (process.env.PROVIDERS_PRIORITY_HOLDERS ?? "moralis")
       .split(",")
       .map((s) => s.trim().toLowerCase())
-      .filter((s) => !!s);
+      .filter((s) => s === "moralis"); // Only allow moralis
     
     console.log(`[holdersService] Provider priority:`, priority);
 
     // Intermediate storage
-    let bitqueryHolders: BitqueryTopHolder[] | null = null;
     let moralisRaw: Array<{ address: string; balance: bigint }> | null = null;
     let totalHoldersGuess = 0;
 
     for (const p of priority) {
-      if (bitqueryHolders || moralisRaw) break;
+      if (moralisRaw) break;
       console.log(`[holdersService] Trying provider: ${p}`);
       switch (p) {
-        case "bitquery": {
-          try {
-            const [totalRes, topRes] = await Promise.all([
-              bitqueryService.getTokenHolderCount(contract, chain),
-              bitqueryService.getTopHolders(contract, chain, 5000),
-            ]);
-            const holders = topRes?.topHolders ?? [];
-            console.log(`[holdersService] Bitquery returned ${holders.length} holders`);
-            if (holders.length > 0 && topRes.source === "bitquery") {
-              bitqueryHolders = holders;
-              totalHoldersGuess = totalRes?.total && totalRes.total > 0 ? totalRes.total : holders.length;
-              source = "bitquery";
-              console.log(`[holdersService] Using Bitquery data: ${totalHoldersGuess} total holders`);
-            }
-          } catch (e) {
-            console.error("[holdersService] Bitquery fetch failed", e);
-            metrics.inc("providers.bitquery.errors");
-          }
-          break;
-        }
         case "moralis": {
           try {
             const res = await moralisTopHolders(contract, chain, 1000);
@@ -236,9 +274,17 @@ export const holdersService = {
               totalHoldersGuess = res.totalHolders;
               source = "moralis";
               console.log(`[holdersService] Using Moralis data: ${totalHoldersGuess} total holders`);
+            } else if (res) {
+              console.warn(`[holdersService] Moralis returned but with 0 holders:`, res);
+            } else {
+              console.warn(`[holdersService] Moralis returned null`);
             }
           } catch (e) {
-            console.error("[holdersService] Moralis fetch failed", e);
+            console.error("[holdersService] Moralis fetch failed:", e);
+            if (e instanceof Error) {
+              console.error("[holdersService] Error message:", e.message);
+              console.error("[holdersService] Error stack:", e.stack);
+            }
           }
           break;
         }
@@ -247,7 +293,7 @@ export const holdersService = {
       }
     }
 
-    if (!bitqueryHolders && !moralisRaw) {
+    if (!moralisRaw) {
       console.warn("[holdersService] No holder data available from any provider");
       return {
         topHolders: [],
@@ -265,12 +311,7 @@ export const holdersService = {
 
     // Normalize holders to numbers (token units) for share calculations
     let holdersNorm: Array<{ address: string; balance: number }> = [];
-    if (bitqueryHolders) {
-      holdersNorm = bitqueryHolders
-        .map((h) => ({ address: h.address, balance: Number(h.balance) }))
-        .filter((h) => Number.isFinite(h.balance));
-      console.log(`[holdersService] Normalized ${holdersNorm.length} Bitquery holders`);
-    } else if (moralisRaw) {
+    if (moralisRaw) {
       const denom = Number(BigInt(10) ** BigInt(Math.max(0, meta.decimals)));
       holdersNorm = moralisRaw.map((h) => ({
         address: h.address,
@@ -292,65 +333,11 @@ export const holdersService = {
     };
   },
 
-  // Holder growth time series: use explicit date range; prefer Bitquery, fallback to synthetic
+  // Holder growth time series: fallback to synthetic (BitQuery removed)
   async holderSeries(contract: string, chain: string, days: number): Promise<{ chartData: HolderSeriesPoint[]; source: string; synthetic: boolean }> {
-    const key = process.env.BITQUERY_API_KEY;
-    if (key) {
-      try {
-        const { evmChain } = normalizeChain(chain);
-        const endpoint = "https://graphql.bitquery.io";
-
-        const till = new Date();
-        const since = new Date(Date.UTC(till.getUTCFullYear(), till.getUTCMonth(), till.getUTCDate()));
-        since.setUTCDate(since.getUTCDate() - (days - 1));
-
-        const query = `
-          query HolderDaily($network: EthereumNetwork!, $address: String!, $since: ISO8601DateTime, $till: ISO8601DateTime) {
-            ethereum(network: $network) {
-              transfers(
-                date: {since: $since, till: $till}
-                currency: {is: $address}
-              ) {
-                date: date { date }
-                distinctReceivers: count(uniq: receiver)
-              }
-            }
-          }
-        `;
-        const resp = await withRateLimit("bitquery", async () => {
-          const headers: Record<string, string> = { "Content-Type": "application/json" };
-          if (key.startsWith("ory_") || key.startsWith("ory.at") || key.startsWith("ory_at_")) {
-            headers["Authorization"] = `Bearer ${key}`;
-          } else {
-            headers["X-API-KEY"] = key;
-          }
-          const r = await axios.post(
-            endpoint,
-            {
-              query,
-              variables: {
-                network: evmChain === "ethereum" ? "ethereum" : evmChain,
-                address: contract,
-                since: since.toISOString(),
-                till: till.toISOString(),
-              },
-            },
-            { headers, timeout: 15000 }
-          );
-          metrics.inc("providers.bitquery.calls");
-          return r.data;
-        });
-        const rows: Array<{ date?: { date?: string }; distinctReceivers?: number }> = resp?.data?.ethereum?.transfers ?? [];
-        const series = rows
-          .map((r) => ({ date: String(r?.date?.date ?? "").slice(0, 10), value: Number(r?.distinctReceivers ?? 0) }))
-          .filter((p) => p.date)
-          .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-        if (series.length > 0) return { chartData: series, source: "bitquery", synthetic: false };
-      } catch {
-        // ignore
-      }
-    }
-
+    // BitQuery removed - use synthetic data
+    // TODO: Implement Moralis-based holder series if needed in the future
+    
     // Synthetic fallback
     const now = new Date();
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
