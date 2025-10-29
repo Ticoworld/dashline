@@ -98,8 +98,16 @@ export const coinGeckoService = {
           }
           // If simple endpoint returned no data, fall through to Dexscreener
           throw new Error("coingecko simple returned empty");
-        } catch (_err) {
-          console.warn('[coingecko] contract+simple failed, trying dexscreener fallback', _err);
+        } catch (_err: unknown) {
+          // Check if it's a rate limit error (429)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const axErr = _err as any;
+          if (axErr?.response?.status === 429) {
+            console.warn('[coingecko] Rate limited (429), skipping to dexscreener fallback');
+            metrics.inc('coingecko.rate_limited');
+          } else {
+            console.warn('[coingecko] contract+simple failed, trying dexscreener fallback', _err);
+          }
           // Dexscreener fallback for DEX-traded tokens
           try {
             const dsUrl = `https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`;
