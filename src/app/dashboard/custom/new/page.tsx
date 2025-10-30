@@ -27,6 +27,13 @@ export default function NewCustomDashboardPage() {
 		try {
 			const res = await mutation.mutateAsync({ contractAddress: contract.trim(), chain });
 				setSuccess(`Connected ${res.name ?? contract}`);
+
+					// enqueue for indexing
+					try {
+						await fetch('/api/tokens/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contractAddress: contract.trim(), chain }) });
+					} catch (e) {
+						console.warn('enqueue token failed', e);
+					}
 			// Persist selection and update context
 			try {
 				if (res.projectId) {

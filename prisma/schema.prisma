@@ -74,6 +74,7 @@ model Project {
 
   // Contract info
   contractAddress String
+  contractAddressChecksum String?
   chain           String   // "ethereum", "polygon", "base", etc.
   name            String
   symbol          String
@@ -93,9 +94,9 @@ model Project {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  @@unique([userId, contractAddress, chain]) // User can't add same contract twice
+  @@unique([userId, contractAddressChecksum, chain]) // User can't add same contract twice (checksum normalized)
   @@index([userId])
-  @@index([contractAddress])
+  @@index([contractAddressChecksum])
 }
 
 // ============================================
@@ -161,4 +162,80 @@ model CacheEntry {
   lastAccessedAt DateTime @default(now())
 
   @@index([expiresAt])
+}
+
+// ============================================
+// TOKEN INDEXING (for index-on-request)
+// ============================================
+
+model Token {
+  id                String  @id @default(cuid())
+  contractAddress   String
+  contractAddressChecksum String?
+  chain             String
+  name              String?
+  symbol            String?
+  decimals          Int?
+  creationBlock     BigInt?
+  lastBlockScanned  BigInt?   @default(0)
+  status            String    @default("pending") // pending | syncing | complete | backfill
+
+  // Relationships
+  transfers         Transfer[]
+  balances          TokenBalance[]
+  dailyStats        DailyStat[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([contractAddressChecksum, chain])
+  @@index([status])
+  @@index([contractAddressChecksum])
+}
+
+model Transfer {
+  id           String  @id @default(cuid())
+  tokenId      String
+  token        Token   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  txHash       String
+  logIndex     Int
+  from         String
+  to           String
+  value        BigInt
+  blockNumber  BigInt
+  blockTimestamp DateTime
+
+  createdAt    DateTime @default(now())
+
+  @@unique([txHash, logIndex])
+  @@index([tokenId])
+  @@index([blockNumber])
+}
+
+model TokenBalance {
+  id        String  @id @default(cuid())
+  tokenId   String
+  token     Token   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  address   String
+  balance   BigInt  @default(0)
+
+  updatedAt DateTime @default(now())
+
+  @@unique([tokenId, address])
+  @@index([tokenId])
+}
+
+model DailyStat {
+  id         String   @id @default(cuid())
+  tokenId    String
+  token      Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  day        DateTime // normalized to UTC 00:00
+  txCount    Int      @default(0)
+  holders    Int      @default(0)
+  volume     Decimal  @default(0)
+
+  createdAt  DateTime @default(now())
+
+  @@unique([tokenId, day])
+  @@index([tokenId, day])
 }

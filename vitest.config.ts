@@ -8,7 +8,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['tests/**/*.test.ts'],
+    setupFiles: ['./vitest.setup.ts'],
+  include: ['tests/**/*.test.ts', 'src/**/__tests__/**/*.test.ts', 'src/**/*.test.ts'],
     reporters: 'default',
   },
   resolve: {

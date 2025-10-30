@@ -338,6 +338,8 @@ export const holdersService = {
     // BitQuery removed - use synthetic data
     // TODO: Implement Moralis-based holder series if needed in the future
     
+    console.log(`[holdersService] holderSeries called for ${days} days - returning synthetic data`);
+    
     // Synthetic fallback
     const now = new Date();
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -349,6 +351,7 @@ export const holdersService = {
       d.setUTCDate(start.getUTCDate() + i);
       out.push({ date: d.toISOString().slice(0, 10), value: Math.max(0, base + i * 5 + Math.round(Math.sin(i / 3) * 10)) });
     }
+    console.log(`[holdersService] Generated ${out.length} synthetic points, first: ${JSON.stringify(out[0])}, last: ${JSON.stringify(out[out.length - 1])}`);
     return { chartData: out, source: "synthetic", synthetic: true };
   },
 };

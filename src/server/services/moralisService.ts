@@ -55,8 +55,9 @@ export const moralisService = {
         }
       });
 
-      // Moralis docs vary; try multiple common fields
+      // Moralis v2.2 returns totalHolders (camelCase)
       const possible = [
+        (data as { totalHolders?: number })?.totalHolders,
         (data as { total?: number })?.total,
         (data as { holders?: number })?.holders,
         (data as { address_count?: number })?.address_count,
@@ -174,6 +175,12 @@ export const moralisService = {
       });
 
       const items: Array<{ block_timestamp?: string }> = data?.result ?? data?.items ?? [];
+      if (pages === 0) {
+        console.log(`[moralisService] First page: got ${items.length} transfers`);
+        if (items.length > 0) {
+          console.log(`[moralisService] Sample transfer:`, items[0]);
+        }
+      }
       for (const it of items) {
         const ts = String(it?.block_timestamp ?? "");
         if (!ts) continue;
@@ -188,6 +195,14 @@ export const moralisService = {
     }
 
     // Build ASC series for each day in window
+    console.log(`[moralisService] Processed ${pages} pages, found transfers on ${perDay.size} unique days`);
+    if (perDay.size > 0) {
+      const datesWithActivity = Array.from(perDay.entries())
+        .filter(([, count]) => count > 0)
+        .sort(([a], [b]) => a.localeCompare(b));
+      console.log(`[moralisService] Date range with activity: ${datesWithActivity[0]?.[0]} to ${datesWithActivity[datesWithActivity.length - 1]?.[0]}`);
+      console.log(`[moralisService] Sample activity: ${datesWithActivity.slice(0, 3).map(([d, c]) => `${d}:${c}`).join(', ')}`);
+    }
     const out: Array<{ date: string; count: number }> = [];
     for (let i = 0; i < days; i++) {
       const d = new Date(since);
@@ -196,6 +211,8 @@ export const moralisService = {
       out.push({ date: keyDate, count: perDay.get(keyDate) ?? 0 });
     }
 
+    console.log(`[moralisService] Returning ${out.length} days, non-zero days: ${out.filter(p => p.count > 0).length}`);
+    console.log(`[moralisService] Requested range: ${fmt(since)} to ${fmt(till)}`);
     return out;
   },
 };

@@ -103,12 +103,14 @@ export async function assembleHoldersMetric(project: ProjectContext, timeRange: 
   const days = rangeToDays(timeRange);
   const seriesRes = await holdersService.holderSeries(project.contractAddress, project.chain, days);
   let series = seriesRes.chartData.map((p) => ({ date: p.date, holders: p.value })) as HolderSeriesPoint[];
+  console.log(`[metricAssembler] holderSeries returned ${series.length} points, synthetic: ${seriesRes.synthetic}`);
   if (!series || series.length === 0) {
     series = buildSyntheticHolderSeries(latest.total, days);
   }
   const prev = series.length > 1 ? series.at(-2)!.holders : series[0]?.holders ?? latest.total;
   const change = latest.total - prev;
   const changePercent = prev ? (change / prev) * 100 : 0;
+  console.log(`[metricAssembler] Holder metric: total=${latest.total}, chartData length=${series.length}, first point=${JSON.stringify(series[0])}`);
   return {
     totalHolders: latest.total,
     change,
@@ -158,6 +160,10 @@ export async function assemblePriceMetric(project: ProjectContext): Promise<Pric
 
 export async function assembleTransactionsMetric(project: ProjectContext, timeRange: TimeRangeOption): Promise<TransactionsMetric> {
   const res = await providerService.txSeries(project.contractAddress, timeRange);
+  console.log(`[metricAssembler] txSeries returned ${res.series.length} points, source: ${res.source}`);
+  if (res.series.length > 0) {
+    console.log(`[metricAssembler] First tx point: ${JSON.stringify(res.series[0])}, Last: ${JSON.stringify(res.series.at(-1))}`);
+  }
   const last = res.series.at(-1)?.count ?? 0;
   const prev = res.series.length > 1 ? res.series.at(-2)!.count : last;
   return {

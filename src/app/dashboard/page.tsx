@@ -52,6 +52,39 @@ export default function DashboardPage() {
     { enabled: !!projectId }
   );
 
+  // fetch project details to get contractAddress/chain for token status
+  const projectQuery = api.project.get.useQuery({ projectId: projectId ?? "" }, { enabled: !!projectId });
+  const contractAddress = projectQuery.data?.project?.contractAddress;
+  const chain = projectQuery.data?.project?.chain ?? "ethereum";
+
+  const [tokenStatus, setTokenStatus] = React.useState<null | { found: boolean; status?: string; lastBlockScanned?: number }>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+    async function fetchStatus() {
+      if (!contractAddress) return;
+      try {
+        const url = `/api/tokens/status?contractAddress=${encodeURIComponent(contractAddress)}&chain=${encodeURIComponent(chain)}`;
+        const res = await fetch(url);
+        if (!mounted) return;
+        if (res.status === 200) {
+          const body = await res.json();
+          setTokenStatus(body);
+        } else if (res.status === 404) {
+          setTokenStatus({ found: false });
+        }
+      } catch (err) {
+        console.warn('failed to fetch token status', err);
+      }
+    }
+    fetchStatus();
+    const iv = setInterval(fetchStatus, Number(process.env.NEXT_PUBLIC_TOKEN_STATUS_POLL_MS ?? 15000));
+    return () => {
+      mounted = false;
+      clearInterval(iv);
+    };
+  }, [contractAddress, chain]);
+
   // IMPORTANT: Keep hooks at top-level and before any conditional returns
   const { data: topPageData, isLoading: topPageLoading, refetch: refetchTopPage } = api.metrics.getTopHolders.useQuery(
     { projectId: projectId ?? "", limit: TOP_PAGE_SIZE, offset: topOffset },
@@ -186,6 +219,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {tokenStatus && tokenStatus.found && tokenStatus.status !== 'complete' && (
+        <div className="p-3 rounded bg-yellow-900/30 text-yellow-300 border border-yellow-800">
+          Indexing in progress — status: {tokenStatus.status}. {tokenStatus.lastBlockScanned ? `Last scanned block: ${tokenStatus.lastBlockScanned}` : ''}
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
   <MetricCard title="Total Holders" value={formatNumber(holders.totalHolders)} change={holders.changePercent} changeType={holders.changePercent > 0 ? "increase" : "decrease"} changeFormat="percentage" onRetry={refetch} comparisonLabel={`vs last ${timeRange}`} lastUpdated={holders?.lastUpdatedAt ? formatDate(holders.lastUpdatedAt as unknown as string) : undefined} sparklineData={holders.chartData?.map((p: RawPoint) => ({ date: p.date, value: p.holders ?? p.value ?? 0 }))} />
   <MetricCard title="24h Volume" value={`$${(volume.volume24h / 1000).toFixed(1)}k`} change={volume.volumeChange} changeType={volume.volumeChange > 0 ? "increase" : "decrease"} changeFormat="currency" onRetry={refetch} comparisonLabel={`vs last ${timeRange}`} lastUpdated={volume?.lastUpdatedAt ? formatDate(volume.lastUpdatedAt as unknown as string) : undefined} sparklineData={volume.chartData?.map((p: RawPoint) => ({ date: p.date, value: p.volume ?? p.value ?? 0 }))} />

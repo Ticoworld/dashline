@@ -33,6 +33,12 @@ export default function ConnectPage() {
 
       showToast({ severity: "success", message: "Project connected and selected. Redirecting to dashboard…", duration: 1800 });
       // Small delay so users see confirmation, then navigate
+      // enqueue token for indexing by calling tokens/register
+      try {
+        await fetch('/api/tokens/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contractAddress: contract.trim(), chain }) });
+      } catch (e) {
+        console.warn('failed to enqueue token for indexing', e);
+      }
       setTimeout(() => router.push("/dashboard"), 400);
       console.log("connected", res);
     } catch (err: unknown) {
