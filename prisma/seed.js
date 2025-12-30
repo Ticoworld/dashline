@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { PrismaClient } = require('../src/generated/prisma');
+const { getAddress } = require('ethers');
 const prisma = new PrismaClient();
 
 async function main() {
@@ -26,12 +27,19 @@ async function main() {
   });
 
   // Sample project to make dashboard non-empty
+  const rawAddr = '0x0000000000000000000000000000000000000000';
+  const checksum = (() => {
+    try { return getAddress(rawAddr); } catch { return rawAddr; }
+  })();
+  const lower = checksum.toLowerCase();
+
   const project = await prisma.project.upsert({
-    where: { userId_contractAddress_chain: { userId: user.id, contractAddress: '0x0000000000000000000000000000000000000000', chain: 'ethereum' } },
-    update: { name: 'Mock Token', symbol: 'MOCK' },
+    where: { userId_contractAddressChecksum_chain: { userId: user.id, contractAddressChecksum: checksum, chain: 'ethereum' } },
+    update: { name: 'Mock Token', symbol: 'MOCK', contractAddress: lower, contractAddressChecksum: checksum },
     create: {
       userId: user.id,
-      contractAddress: '0x0000000000000000000000000000000000000000',
+      contractAddress: lower,
+      contractAddressChecksum: checksum,
       chain: 'ethereum',
       name: 'Mock Token',
       symbol: 'MOCK',

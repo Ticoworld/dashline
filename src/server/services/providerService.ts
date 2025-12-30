@@ -5,6 +5,7 @@ import { withRateLimit } from "./rateLimiter";
 import { metrics } from "./observability";
 import { holdersService } from "./holdersService";
 import { moralisService } from "./moralisService";
+import { prisma } from "@/server/db";
 
 // Provider fallback orchestration. All functions return { data, source }.
 // BitQuery removed due to billing issues - using Moralis only
@@ -112,6 +113,26 @@ export const providerService = {
 
   async txSeries(contractAddress: string, timeRange: string, chain = "ethereum"): Promise<{ series: Array<{ date: string; count: number }>; source: string }> {
     const days = rangeToDays(timeRange);
+    // Prefer internal aggregation if we have local data for this token
+    try {
+      let checksum = contractAddress;
+      try { const { getAddress } = await import("ethers"); checksum = getAddress(contractAddress); } catch {}
+      const token = await prisma.token.findFirst({ where: { contractAddressChecksum: checksum, chain } });
+      if (token) {
+        const start = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
+        start.setUTCDate(start.getUTCDate() - (days - 1));
+        const rows = await prisma.$queryRawUnsafe<Array<{ date: string; count: number }>>(
+          `SELECT to_char(date_trunc('day', "blockTimestamp")::date, 'YYYY-MM-DD') AS date, COUNT(*)::int AS count
+           FROM "Transfer" WHERE "tokenId"='${token.id}' AND "blockTimestamp" >= '${start.toISOString()}'
+           GROUP BY 1 ORDER BY 1`
+        );
+        if (rows && rows.length > 0) {
+          return { series: rows.map(r => ({ date: r.date, count: Number(r.count) })), source: "internal" };
+        }
+      }
+    } catch (err) {
+      console.warn("[providerService] internal txSeries fallback failed", err);
+    }
     
     // Try Moralis transfers series (BitQuery removed)
     try {

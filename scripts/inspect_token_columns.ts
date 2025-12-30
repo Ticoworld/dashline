@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 async function main() {
   const cols = await prisma.$queryRaw`SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'Token'`;
   console.log('Token table columns:');
-  console.table(cols as any);
+  console.table(cols as unknown as Array<Record<string, unknown>>);
   await prisma.$disconnect();
 }
 

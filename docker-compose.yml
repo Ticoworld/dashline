@@ -1,25 +1,37 @@
 version: "3.8"
 
 services:
-	db:
-		image: postgres:16
-		container_name: dashline-postgres
-		restart: unless-stopped
-		environment:
-			POSTGRES_USER: postgres
-			POSTGRES_PASSWORD: postgres
-			POSTGRES_DB: dashline
-		ports:
-			- "5432:5432"
-		volumes:
-			- db_data:/var/lib/postgresql/data
-		healthcheck:
-			test: ["CMD-SHELL", "pg_isready -U postgres"]
-			interval: 10s
-			timeout: 5s
-			retries: 5
+  db:
+    image: postgres:16
+    container_name: dashline-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: dashline-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-	db_data:
-		driver: local
+  db_data:
+    driver: local
 

@@ -4,15 +4,21 @@ const counters: Counters = {};
 const REDIS_URL = process.env.REDIS_URL;
 let redis: null | { incrby: (k: string, by: number) => Promise<number>; get: (k: string) => Promise<string | null>; del: (k: string) => Promise<number>; scan: (cur: string, ...args: Array<string | number>) => Promise<[string, string[]]> } = null;
 
+// Avoid bundler resolving optional deps like 'ioredis' when not installed
+async function dynamicImport(moduleName: string): Promise<unknown> {
+  // eslint-disable-next-line no-new-func
+  return (new Function("m", "return import(m)"))(moduleName);
+}
+
 async function ensureRedis() {
   if (!REDIS_URL) return null;
   if (redis) return redis;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mod: any = await import("ioredis");
+    const mod: any = await dynamicImport("ioredis");
     const IORedis = mod?.default ?? mod;
-  const client = new IORedis(REDIS_URL);
-  redis = client as unknown as typeof redis;
+    const client = new IORedis(REDIS_URL);
+    redis = client as unknown as typeof redis;
     return redis;
   } catch {
     return null;

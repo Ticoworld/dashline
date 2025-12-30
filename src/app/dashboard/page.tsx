@@ -1,11 +1,22 @@
 "use client";
 import React, { useEffect } from "react";
+import dynamic from "next/dynamic";
 import { api } from "@/lib/trpc";
 import MetricCard, { type MetricPoint } from "@/components/cards/MetricCard";
 import ChartCard from "@/components/cards/ChartCard";
-import LineChart from "@/components/charts/LineChart";
-import BarChart from "@/components/charts/BarChart";
-import PieChart from "@/components/charts/PieChart";
+// Lazy-load chart components for faster first paint; each provides its own skeleton
+const LineChart = dynamic(() => import("@/components/charts/LineChart"), {
+  ssr: false,
+  loading: () => <div className="h-64 rounded bg-white/5 animate-pulse" />,
+});
+const BarChart = dynamic(() => import("@/components/charts/BarChart"), {
+  ssr: false,
+  loading: () => <div className="h-64 rounded bg-white/5 animate-pulse" />,
+});
+const PieChart = dynamic(() => import("@/components/charts/PieChart"), {
+  ssr: false,
+  loading: () => <div className="h-64 rounded bg-white/5 animate-pulse" />,
+});
 import TableCard from "@/components/cards/TableCard";
 import EmptyState from "@/components/ui/EmptyState";
 import { formatNumber, formatDate } from "@/lib/formatters";
@@ -270,6 +281,7 @@ export default function DashboardPage() {
           lastUpdatedAt={(holders?.lastUpdatedAt ?? undefined) as unknown as number | string}
           dataSource={holders?.source}
           synthetic={Boolean((holders as unknown as { dataEmpty?: boolean }).dataEmpty)}
+          indexingStatus={tokenStatus}
         >
           <LineChart data={holders.chartData.map((p: RawPoint) => ({ date: p.date, value: p.holders ?? p.value ?? 0 }))} />
         </ChartCard>
@@ -289,6 +301,7 @@ export default function DashboardPage() {
           lastUpdatedAt={(volume?.lastUpdatedAt ?? undefined) as unknown as number | string}
           dataSource={volume?.source}
           synthetic={Boolean((volume as unknown as { dataEmpty?: boolean }).dataEmpty)}
+          indexingStatus={tokenStatus}
         >
           <BarChart data={volume.chartData.map((p: RawPoint) => ({ date: p.date, value: p.volume ?? p.value ?? 0 }))} />
         </ChartCard>
@@ -308,6 +321,7 @@ export default function DashboardPage() {
           }}
           lastUpdatedAt={(data?.price?.lastUpdatedAt ?? undefined) as unknown as number | string}
           dataSource={data?.price?.source}
+          indexingStatus={tokenStatus}
         >
           <PieChart data={liquidity.map((item: { name: string; value: number }) => ({ name: item.name, value: item.value }))} />
         </ChartCard>
@@ -325,6 +339,7 @@ export default function DashboardPage() {
           }}
           lastUpdatedAt={(data?.holders?.lastUpdatedAt ?? undefined) as unknown as number | string}
           dataSource={data?.holders?.source}
+          indexingStatus={tokenStatus}
         >
           <div className="flex flex-col h-full">
             {(() => {

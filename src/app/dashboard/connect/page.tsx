@@ -12,6 +12,7 @@ export default function ConnectPage() {
   const [contract, setContract] = useState("");
   const [chain, setChain] = useState("ethereum");
   const mutation = api.project.connect.useMutation();
+  const deleteMutation = api.project.delete.useMutation();
   const projectsQuery = api.project.list.useQuery(undefined, { staleTime: 60_000 });
   const ctx = useDashboardContext();
 
@@ -90,6 +91,32 @@ export default function ConnectPage() {
       </form>
       <div className="mt-10 max-w-2xl">
         <h3 className="text-lg font-semibold mb-3">Your connected projects</h3>
+        {((projectsQuery.data?.projects?.length ?? 0) > 0) && (
+          <div className="mb-3">
+            <button
+              className="text-xs rounded border border-red-800/40 bg-red-900/20 px-2 py-1 text-red-300 hover:bg-red-900/30"
+              disabled={deleteMutation.isPending}
+              onClick={async () => {
+                try {
+                  const items = projectsQuery.data?.projects ?? [];
+                  for (const p of items) {
+                    await deleteMutation.mutateAsync({ projectId: p.id });
+                  }
+                  await projectsQuery.refetch();
+                  // Clear selected project if needed
+                  try { localStorage.removeItem("dashline.projectId"); } catch {}
+                  if (ctx) ctx.setProjectId(null);
+                  showToast({ severity: "success", message: "All projects deleted" });
+                } catch (err) {
+                  console.error(err);
+                  showToast({ severity: "error", message: "Failed to delete all projects" });
+                }
+              }}
+            >
+              Delete all projects
+            </button>
+          </div>
+        )}
         {projectsQuery.isLoading ? (
           <div className="text-sm text-gray-400">Loading…</div>
         ) : ((projectsQuery.data?.projects?.length ?? 0) === 0) ? (
@@ -105,6 +132,27 @@ export default function ConnectPage() {
                 <div className="flex items-center gap-2">
                   <Link href="/dashboard" className="text-xs rounded bg-[#6366F1] px-2 py-1 text-white hover:bg-[#5558E3]">Open</Link>
                   <Link href={`/dashboard/settings?project=${p.id}`} className="text-xs rounded border border-[#1A1A1A] px-2 py-1 text-gray-200 hover:bg-[#151515]">Manage</Link>
+                  <button
+                    className="text-xs rounded border border-red-800/40 bg-red-900/20 px-2 py-1 text-red-300 hover:bg-red-900/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={deleteMutation.isPending}
+                    onClick={async () => {
+                      try {
+                        await deleteMutation.mutateAsync({ projectId: p.id });
+                        await projectsQuery.refetch();
+                        try {
+                          const sel = localStorage.getItem("dashline.projectId");
+                          if (sel === p.id) localStorage.removeItem("dashline.projectId");
+                        } catch {}
+                        if (ctx?.projectId === p.id) ctx.setProjectId(null);
+                        showToast({ severity: "success", message: `Deleted ${p.name}` });
+                      } catch (err) {
+                        console.error(err);
+                        showToast({ severity: "error", message: `Failed to delete ${p.name}` });
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </li>
             ))}

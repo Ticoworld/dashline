@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 const isProd = process.env.NODE_ENV === "production";
+// Next.js sets NEXT_PHASE=phase-production-build during static analysis/build. We relax strict checks in that phase
+// so local builds and CI smoke builds don't require full prod secrets. Runtime prod still enforces.
+const isNextBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
 
 const base = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -37,7 +40,8 @@ const base = z.object({
 
 // Tighten requirements in production
 const prod = base.superRefine((env, ctx) => {
-  if (!isProd) return;
+  // Skip strict checks during Next production build or when explicitly relaxed
+  if (!isProd || isNextBuildPhase || process.env.RELAX_PROD_ENV === "1") return;
 
   // Disallow prisma+postgres in production unless explicitly intended
   if (env.DATABASE_URL?.startsWith("prisma+postgres://")) {

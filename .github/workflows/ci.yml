@@ -2,25 +2,65 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master, main ]
   pull_request:
-    branches: [ main ]
+    branches: [ master, main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dashline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres" 
+          --health-interval=10s 
+          --health-timeout=5s 
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashline
+      NODE_ENV: test
+      RPC_URLS: https://rpc.ankr.com/eth
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
       - name: Install dependencies
         run: npm ci
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Build
-        run: npm run build
-      - name: Test
-        run: npm test
+      - name: Lint
+        run: npm run lint
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed database
+        run: npx prisma db seed
+
+      - name: Normalize addresses
+        run: npm run normalize:addrs
+
+      - name: Verify duplicates merged
+        run: npm run verify:dupes
+
+      - name: Typecheck + Build (smoke)
+        run: npm run smoke
+
+      - name: Run tests
+        run: npm run test

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { handleProjectConnect } from "@/server/api/routers/project";
@@ -22,7 +22,7 @@ describe("project.connect server-side token registration", () => {
   const upsertSpy = vi.spyOn(indexerService, "upsertTokenForIndexing").mockResolvedValue({ id: "tok-1", status: "pending" } as any);
 
   const input = { contractAddress: "0x0000000000000000000000000000000000123456", chain: "ethereum" };
-  const res = await handleProjectConnect(input as any, { userId: "user-1" } as any);
+  const res = await handleProjectConnect(input as { contractAddress: string; chain: string }, { userId: "user-1" } as { userId: string });
 
   expect(upsertSpy).toHaveBeenCalled();
   expect(res).toHaveProperty("projectId", "proj-1");

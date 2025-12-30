@@ -151,8 +151,26 @@ export const moralisService = {
     const perDay = new Map<string, number>();
     let cursor: string | null = null;
     let pages = 0;
+    const maxPages = Math.max(1, Number(process.env.MORALIS_TX_MAX_PAGES ?? 15));
+    const timeBudgetMs = Math.max(
+      2000,
+      Number(
+        process.env.MORALIS_TX_TIME_BUDGET_MS ?? (process.env.NODE_ENV === "production" ? 20000 : 12000)
+      )
+    );
+    const startedAt = Date.now();
 
     while (true) {
+      // Time budget guard
+      const elapsed = Date.now() - startedAt;
+      const remaining = timeBudgetMs - elapsed;
+      if (remaining <= 0) {
+        console.warn(
+          `[moralisService] getContractTxSeries exceeded time budget (${timeBudgetMs}ms). Triggering fallback.`
+        );
+        // Throw to let providerService fallback to synthetic series
+        throw new Error("moralis_tx_series_timeout");
+      }
       const url = new URL(base);
       url.searchParams.set("chain", moralisChain);
       url.searchParams.set("from_date", fmt(since));
@@ -163,7 +181,9 @@ export const moralisService = {
       const data = await withRateLimit("moralis", async () => {
         const t0 = Date.now();
         try {
-          const r = await axios.get(url.toString(), { headers: { "X-API-Key": key }, timeout: 15000 });
+          // Ensure single-request timeout doesn't exceed remaining budget but keep a lower bound for responsiveness
+          const perReqTimeout = Math.max(3000, Math.min(15000, remaining));
+          const r = await axios.get(url.toString(), { headers: { "X-API-Key": key }, timeout: perReqTimeout });
           metrics.inc("providers.moralis.calls");
           const latency = Date.now() - t0;
           metrics.inc(`providers.moralis.latency_ms.${Math.min(1000, Math.ceil(latency / 100) * 100)}`);
@@ -190,12 +210,12 @@ export const moralisService = {
 
       cursor = data?.cursor ?? data?.next ?? null;
       pages++;
-      // stop if no more pages or we fetched enough to cover the window safely
-      if (!cursor || pages > 100) break;
+      // stop if no more pages or hit page cap
+      if (!cursor || pages >= maxPages) break;
     }
 
     // Build ASC series for each day in window
-    console.log(`[moralisService] Processed ${pages} pages, found transfers on ${perDay.size} unique days`);
+  console.log(`[moralisService] Processed ${pages} pages (cap ${maxPages}), found transfers on ${perDay.size} unique days`);
     if (perDay.size > 0) {
       const datesWithActivity = Array.from(perDay.entries())
         .filter(([, count]) => count > 0)

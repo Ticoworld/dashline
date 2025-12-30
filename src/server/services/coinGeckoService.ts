@@ -45,6 +45,12 @@ export const coinGeckoService = {
     source?: "coingecko" | "dexscreener" | "mock";
   }> {
     const cbKey = `coingecko:price:${contractAddress}`;
+    const totalBudgetMs = Math.max(
+      3000,
+      Number(process.env.COINGECKO_TOTAL_TIMEOUT_MS ?? (process.env.NODE_ENV === "production" ? 20000 : 12000))
+    );
+    const started = Date.now();
+    const remaining = () => Math.max(0, totalBudgetMs - (Date.now() - started));
   if (await isOpen(cbKey)) {
       metrics.inc('coingecko.shortcircuited');
       console.warn('[coingecko] circuit open, short-circuiting getTokenPrice');
@@ -56,7 +62,7 @@ export const coinGeckoService = {
       // Try contract endpoint first for richer data
       const contractUrl = `https://api.coingecko.com/api/v3/coins/${platform}/contract/${contractAddress}`;
       try {
-        const res = await retry(() => axios.get(contractUrl, { timeout: 10000 }));
+        const res = await retry(() => axios.get(contractUrl, { timeout: Math.max(2500, Math.min(10000, remaining())) }));
         const marketData = res.data?.market_data ?? {};
   await recordSuccess(cbKey);
         metrics.inc('coingecko.price.success');
@@ -69,6 +75,10 @@ export const coinGeckoService = {
         };
   } catch {
   metrics.inc('coingecko.price.failure');
+        if (remaining() <= 0) {
+          console.warn('[coingecko] budget exhausted after contract endpoint');
+          throw new Error('coingecko_budget_exhausted');
+        }
         // Fallback to simple token price endpoint
         try {
           const url = `https://api.coingecko.com/api/v3/simple/token_price/${platform}`;
@@ -80,7 +90,7 @@ export const coinGeckoService = {
               include_market_cap: true,
               include_24hr_vol: true,
             },
-            timeout: 10000,
+            timeout: Math.max(2000, Math.min(10000, remaining())),
           });
           const key = contractAddress.toLowerCase();
           const entry = data[key] || Object.values(data)[0] || {};
@@ -99,6 +109,9 @@ export const coinGeckoService = {
           // If simple endpoint returned no data, fall through to Dexscreener
           throw new Error("coingecko simple returned empty");
         } catch (_err: unknown) {
+          if (remaining() <= 0) {
+            console.warn('[coingecko] budget exhausted after simple endpoint; going to dexscreener/mock');
+          }
           // Check if it's a rate limit error (429)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const axErr = _err as any;
@@ -111,7 +124,7 @@ export const coinGeckoService = {
           // Dexscreener fallback for DEX-traded tokens
           try {
             const dsUrl = `https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`;
-            const { data: ds } = await axios.get(dsUrl, { timeout: 10000 });
+            const { data: ds } = await axios.get(dsUrl, { timeout: Math.max(2000, Math.min(10000, remaining())) });
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const pairs: Array<any> = Array.isArray(ds?.pairs) ? ds.pairs : [];
             if (pairs.length > 0) {

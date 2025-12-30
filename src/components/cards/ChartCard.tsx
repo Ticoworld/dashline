@@ -57,6 +57,7 @@ export function ChartCard({
   lastUpdatedAt,
   dataSource,
   synthetic,
+  indexingStatus,
 }: {
   title: string;
   subtitle?: string;
@@ -72,6 +73,7 @@ export function ChartCard({
   lastUpdatedAt?: Date | string | number;
   dataSource?: string | null;
   synthetic?: boolean;
+  indexingStatus?: { found?: boolean; status?: string; lastBlockScanned?: number } | null;
 }): React.ReactElement {
   const [showSkeleton, setShowSkeleton] = React.useState(false);
   const [relativeUpdatedLabel, setRelativeUpdatedLabel] = React.useState(() => formatLastUpdated(lastUpdatedAt));
@@ -101,8 +103,19 @@ export function ChartCard({
 
   const normalizedSource = dataSource?.trim() ? dataSource : null;
 
+  const showIndexingBanner = Boolean(indexingStatus && indexingStatus.found && indexingStatus.status && indexingStatus.status !== 'complete');
+
   return (
     <div className="bg-[#111111] rounded-xl p-6 border border-[#151515] flex flex-col h-full">
+      {showIndexingBanner && (
+        <div className="mb-3 -mt-1 rounded bg-yellow-900/30 text-yellow-300 border border-yellow-800 px-3 py-2 text-xs flex items-center gap-2">
+          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          <span>Indexing — data will be ready soon</span>
+        </div>
+      )}
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-0.5">
           <div className="text-base font-medium text-white">{title}</div>

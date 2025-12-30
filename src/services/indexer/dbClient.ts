@@ -14,9 +14,11 @@ export type TransferRow = {
 
 export async function getPendingTokens(limit = 5) {
   // tokens with status pending or syncing
-  const rows = await prisma.$queryRaw`
-    SELECT * FROM "Token" WHERE "status" IN ('pending','syncing') ORDER BY "createdAt" ASC LIMIT ${limit}
-  `;
+  // Allow ordering to be customized for dev convenience (e.g., newest first)
+  const order = (process.env.INDEXER_ORDER || "ASC").toUpperCase() === "DESC" ? "DESC" : "ASC";
+  const safeLimit = Number.isFinite(Number(limit)) ? Number(limit) : 5;
+  const sql = `SELECT * FROM "Token" WHERE "status" IN ('pending','syncing') AND ("paused" IS NULL OR "paused" = false) ORDER BY "createdAt" ${order} LIMIT ${safeLimit}`;
+  const rows = await prisma.$queryRawUnsafe(sql);
   return rows as unknown[];
 }
 
@@ -27,8 +29,15 @@ export async function markTokenSyncing(id: string) {
 }
 
 export async function updateLastBlockScanned(id: string, blockNumber: bigint) {
+  // Cast to bigint explicitly to avoid type mismatch in Postgres
   return prisma.$executeRaw`
-    UPDATE "Token" SET "lastBlockScanned" = ${String(blockNumber)}, "updatedAt" = now() WHERE "id" = ${id}
+    UPDATE "Token" SET "lastBlockScanned" = ${String(blockNumber)}::bigint, "updatedAt" = now() WHERE "id" = ${id}
+  `;
+}
+
+export async function clearReindexFrom(id: string) {
+  return prisma.$executeRaw`
+    UPDATE "Token" SET "reindexFrom" = NULL, "updatedAt" = now() WHERE "id" = ${id}
   `;
 }
 
@@ -43,7 +52,8 @@ export async function insertTransfers(transfers: Array<TransferRow>) {
   // bulk insert using VALUES - avoid SQL injection by building from typed data
   const values = transfers
     .map(t => {
-      const idPart = t.id ? `'${t.id}'` : 'gen_random_uuid()::text';
+      // Use a simple concatenated id fallback if uuid function isn't available
+      const idPart = t.id ? `'${t.id}'` : `'${Date.now()}_${Math.random().toString(36).slice(2)}'`;
       const blockTsSec = Math.floor(t.blockTimestamp / 1000);
       return `(${idPart}, '${t.tokenId}', '${t.txHash}', ${t.logIndex}, '${t.from}', '${t.to}', ${t.value}, ${t.blockNumber}, to_timestamp(${blockTsSec}))`;
     })

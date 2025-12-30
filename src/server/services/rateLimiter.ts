@@ -13,13 +13,48 @@ type Bucket = {
   queue: Array<() => void>;
 };
 
-const DEFAULTS: Record<RateKey, Pick<Bucket, "capacity" | "refillRatePerSec" | "concurrency">> = {
+// Base defaults
+const BASE_DEFAULTS: Record<RateKey, Pick<Bucket, "capacity" | "refillRatePerSec" | "concurrency">> = {
   dexscreener: { capacity: 60, refillRatePerSec: 60 / 60, concurrency: 6 },
   coingecko: { capacity: 50, refillRatePerSec: 50 / 60, concurrency: 5 },
   dune: { capacity: 5, refillRatePerSec: 5 / 60, concurrency: 2 },
   bitquery: { capacity: 5, refillRatePerSec: 5 / 60, concurrency: 2 },
   moralis: { capacity: 10, refillRatePerSec: 10 / 60, concurrency: 2 },
 };
+
+function devAdjustedDefaults(): typeof BASE_DEFAULTS {
+  // In non-production, allow faster Moralis to improve first render speed unless explicitly overridden via env
+  if (process.env.NODE_ENV === "production") return BASE_DEFAULTS;
+  return {
+    ...BASE_DEFAULTS,
+    moralis: { capacity: 60, refillRatePerSec: 60 / 60, concurrency: 4 },
+  };
+}
+
+function envOverride(key: RateKey, base: Pick<Bucket, "capacity" | "refillRatePerSec" | "concurrency">) {
+  const upper = key.toUpperCase();
+  const cap = Number(process.env[`RATE_${upper}_CAPACITY` as keyof NodeJS.ProcessEnv] ?? NaN);
+  const refillPerMin = Number(process.env[`RATE_${upper}_REFILL_PER_MIN` as keyof NodeJS.ProcessEnv] ?? NaN);
+  const conc = Number(process.env[`RATE_${upper}_CONCURRENCY` as keyof NodeJS.ProcessEnv] ?? NaN);
+  const refillRatePerSec = Number.isFinite(refillPerMin) && refillPerMin > 0 ? refillPerMin / 60 : base.refillRatePerSec;
+  return {
+    capacity: Number.isFinite(cap) && cap > 0 ? cap : base.capacity,
+    refillRatePerSec,
+    concurrency: Number.isFinite(conc) && conc > 0 ? conc : base.concurrency,
+  } as Pick<Bucket, "capacity" | "refillRatePerSec" | "concurrency">;
+}
+
+const DEFAULTS: Record<RateKey, Pick<Bucket, "capacity" | "refillRatePerSec" | "concurrency">> = (() => {
+  const d = devAdjustedDefaults();
+  const out: Record<RateKey, Pick<Bucket, "capacity" | "refillRatePerSec" | "concurrency">> = {
+    dexscreener: envOverride("dexscreener", d.dexscreener),
+    coingecko: envOverride("coingecko", d.coingecko),
+    dune: envOverride("dune", d.dune),
+    bitquery: envOverride("bitquery", d.bitquery),
+    moralis: envOverride("moralis", d.moralis),
+  };
+  return out;
+})();
 
 const buckets = new Map<RateKey, Bucket>();
 

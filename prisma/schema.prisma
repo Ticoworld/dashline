@@ -179,6 +179,8 @@ model Token {
   creationBlock     BigInt?
   lastBlockScanned  BigInt?   @default(0)
   status            String    @default("pending") // pending | syncing | complete | backfill
+  paused            Boolean   @default(false)
+  reindexFrom       BigInt?
 
   // Relationships
   transfers         Transfer[]
@@ -191,6 +193,7 @@ model Token {
   @@unique([contractAddressChecksum, chain])
   @@index([status])
   @@index([contractAddressChecksum])
+  @@index([paused])
 }
 
 model Transfer {
@@ -201,7 +204,7 @@ model Transfer {
   logIndex     Int
   from         String
   to           String
-  value        BigInt
+  value        Decimal  @db.Decimal(78, 0)
   blockNumber  BigInt
   blockTimestamp DateTime
 
@@ -217,7 +220,7 @@ model TokenBalance {
   tokenId   String
   token     Token   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
   address   String
-  balance   BigInt  @default(0)
+  balance   Decimal @db.Decimal(78, 0) @default(0)
 
   updatedAt DateTime @default(now())
 

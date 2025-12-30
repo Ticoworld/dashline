@@ -16,7 +16,9 @@ export const createTRPCContext = async (opts?: { req?: Request }): Promise<UserC
   // This mirrors the dashboard layout bypass and is guarded to non-prod only.
   if (process.env.NODE_ENV !== "production" && process.env.DASHLINE_DEV_BYPASS_AUTH === "1") {
     const ip = opts?.req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || opts?.req?.headers.get("x-real-ip") || null;
-    return { userId: "dev-user", ip };
+    // Ensure a local user exists for the dev-bypass id so Prisma FKs succeed
+    const internalId = await resolveOrCreateUserFromClerk("dev-user");
+    return { userId: internalId, ip };
   }
 
   // Clerk's `auth` helper will read auth from the server environment

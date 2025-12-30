@@ -342,6 +342,104 @@
 			"command": "npm run test",
 			"isBackground": false,
 			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Typecheck build quick",
+			"type": "shell",
+			"command": "npm run smoke",
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "npm run test",
+			"isBackground": false,
+			"group": "build"
 		}
 	]
 }

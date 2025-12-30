@@ -1,10 +1,30 @@
 import { JsonRpcProvider } from "ethers";
 
-const envUrls = (process.env.RPC_URLS || process.env.RPC_URL || "").split(",").map(s => s.trim()).filter(Boolean);
 let idx = 0;
 
+function resolveRpcUrls(): string[] {
+  const envList = (process.env.RPC_URLS || process.env.RPC_URL || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const urls: string[] = [...envList];
+  if (process.env.QUICKNODE_RPC) urls.push(process.env.QUICKNODE_RPC);
+  if (process.env.INFURA_KEY) urls.push(`https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`);
+  if (process.env.ALCHEMY_KEY) urls.push(`https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`);
+  if (process.env.PUBLIC_RPC_URL) urls.push(process.env.PUBLIC_RPC_URL);
+  // Safe public fallbacks (no key required)
+  urls.push("https://cloudflare-eth.com");
+  urls.push("https://ethereum.publicnode.com");
+  // de-duplicate
+  return Array.from(new Set(urls.filter(Boolean)));
+}
+
 export function getRpcUrls() {
-  return envUrls.length ? envUrls : ["https://rpc.ankr.com/eth"];
+  const urls = resolveRpcUrls();
+  if (idx === 0) {
+    console.log("[rpcManager] Using RPC URLs:", urls.join(", "));
+  }
+  return urls;
 }
 
 export function getProvider(): JsonRpcProvider {

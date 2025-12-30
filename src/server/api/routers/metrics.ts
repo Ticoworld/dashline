@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router, rateLimited } from "@/server/api/trpc";
 import { prisma } from "@/server/db";
@@ -32,6 +33,8 @@ export const metricsRouter = router({
   const metricKey = `holdersV2:${project.id}:${input.timeRange}`;
       const snapshot = await ensureFreshSnapshot(ctxProject, metricKey, {
         ttlMinutes: 10,
+        asyncRefresh: true,
+        placeholder: () => ({ totalHolders: 0, change: 0, changePercent: 0, chartData: [], dataEmpty: true } as unknown as Prisma.JsonValue),
         fallbackCollect: async () => {
           const data = await assembleHoldersMetric(ctxProject, input.timeRange);
           const { source, ...rest } = data;
@@ -58,6 +61,8 @@ export const metricsRouter = router({
   const metricKey = `volumeV2:${project.id}:${input.timeRange}`;
       const snapshot = await ensureFreshSnapshot(ctxProject, metricKey, {
         ttlMinutes: 5,
+        asyncRefresh: true,
+        placeholder: () => ({ volume24h: 0, volumeChange: 0, chartData: [], dataEmpty: true } as unknown as Prisma.JsonValue),
         fallbackCollect: async () => {
           const data = await assembleVolumeMetric(ctxProject, input.timeRange);
           const { source, ...rest } = data;
@@ -84,6 +89,8 @@ export const metricsRouter = router({
   const metricKey = `priceV2:${project.id}`;
       const snapshot = await ensureFreshSnapshot(ctxProject, metricKey, {
         ttlMinutes: 1,
+        asyncRefresh: true,
+        placeholder: () => ({ price: 0, change24h: 0, marketCap: 0, volume24h: 0 } as unknown as Prisma.JsonValue),
         fallbackCollect: async () => {
           const data = await assemblePriceMetric(ctxProject);
           const { source, ...rest } = data;
@@ -112,6 +119,8 @@ export const metricsRouter = router({
   const metricKey = `topHoldersV2:${project.id}`;
         const snapshot = await ensureFreshSnapshot(ctxProject, metricKey, {
           ttlMinutes: 30,
+          asyncRefresh: true,
+          placeholder: () => ({ holders: [], dataEmpty: true } as unknown as Prisma.JsonValue),
           fallbackCollect: async () => {
             const res = await providerService.topHolders(project.contractAddress, project.chain, 10);
             return { source: res.source, value: { holders: res.holders } };
@@ -135,6 +144,8 @@ export const metricsRouter = router({
   const metricKey = `transactionsV2:${project.id}:${input.timeRange}`;
       const snapshot = await ensureFreshSnapshot(ctxProject, metricKey, {
         ttlMinutes: 5,
+        asyncRefresh: true,
+        placeholder: () => ({ totalTx: 0, change: 0, chartData: [], dataEmpty: true } as unknown as Prisma.JsonValue),
         fallbackCollect: async () => {
           const data = await assembleTransactionsMetric(ctxProject, input.timeRange);
           const { source, ...rest } = data;
@@ -162,6 +173,8 @@ export const metricsRouter = router({
       const [holders, volume, price, tx, topHoldersSnap, liquiditySnap] = await Promise.all([
         ensureFreshSnapshot(ctxProject, `holdersV2:${project.id}:${input.timeRange}`, {
           ttlMinutes: 10,
+          asyncRefresh: true,
+          placeholder: () => ({ totalHolders: 0, change: 0, changePercent: 0, chartData: [], dataEmpty: true } as unknown as Prisma.JsonValue),
           fallbackCollect: async () => {
             const data = await assembleHoldersMetric(ctxProject, input.timeRange);
             const { source, ...rest } = data;
@@ -170,6 +183,8 @@ export const metricsRouter = router({
         }),
         ensureFreshSnapshot(ctxProject, `volumeV2:${project.id}:${input.timeRange}`, {
           ttlMinutes: 5,
+          asyncRefresh: true,
+          placeholder: () => ({ volume24h: 0, volumeChange: 0, chartData: [], dataEmpty: true } as unknown as Prisma.JsonValue),
           fallbackCollect: async () => {
             const data = await assembleVolumeMetric(ctxProject, input.timeRange);
             const { source, ...rest } = data;
@@ -178,6 +193,8 @@ export const metricsRouter = router({
         }),
         ensureFreshSnapshot(ctxProject, `priceV2:${project.id}`, {
           ttlMinutes: 1,
+          asyncRefresh: true,
+          placeholder: () => ({ price: 0, change24h: 0, marketCap: 0, volume24h: 0 } as unknown as Prisma.JsonValue),
           fallbackCollect: async () => {
             const data = await assemblePriceMetric(ctxProject);
             const { source, ...rest } = data;
@@ -186,6 +203,8 @@ export const metricsRouter = router({
         }),
         ensureFreshSnapshot(ctxProject, `transactionsV2:${project.id}:${input.timeRange}`, {
           ttlMinutes: 5,
+          asyncRefresh: true,
+          placeholder: () => ({ totalTx: 0, change: 0, chartData: [], dataEmpty: true } as unknown as Prisma.JsonValue),
           fallbackCollect: async () => {
             const data = await assembleTransactionsMetric(ctxProject, input.timeRange);
             const { source, ...rest } = data;
@@ -194,6 +213,8 @@ export const metricsRouter = router({
         }),
         ensureFreshSnapshot(ctxProject, `topHoldersV2:${project.id}`, {
           ttlMinutes: 30,
+          asyncRefresh: true,
+          placeholder: () => ({ holders: [], dataEmpty: true } as unknown as Prisma.JsonValue),
           fallbackCollect: async () => {
             const res = await providerService.topHolders(project.contractAddress, project.chain, 10);
             return { source: res.source, value: { holders: res.holders } };
@@ -201,6 +222,8 @@ export const metricsRouter = router({
         }),
         ensureFreshSnapshot(ctxProject, `liquidityMixV2:${project.id}`, {
           ttlMinutes: 10,
+          asyncRefresh: true,
+          placeholder: () => ({ items: [], dataEmpty: true } as unknown as Prisma.JsonValue),
           fallbackCollect: async () => {
             const res = await providerService.liquidityMix(project.contractAddress);
             return { source: res.source, value: { items: res.items } };

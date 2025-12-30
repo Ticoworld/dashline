@@ -130,6 +130,41 @@ export type ProjectSnapshotRefreshResult = {
   outcomes: SnapshotRefreshOutcome[];
 };
 
+function parseMetricKey(metricKey: string): { base: string; range?: TimeRangeOption } {
+  const parts = metricKey.split(":");
+  if (parts.length <= 1) return { base: metricKey };
+  const base = parts[0];
+  const maybeRange = parts[1] as TimeRangeOption | undefined;
+  return { base, range: maybeRange };
+}
+
+export async function refreshMetricKey(
+  project: ProjectContext,
+  metricKey: string,
+  now = Date.now()
+): Promise<SnapshotRefreshOutcome> {
+  const { base, range } = parseMetricKey(metricKey);
+  const config = METRIC_CONFIGS.find((c) => c.key === base);
+  if (!config) return { metric: metricKey, refreshed: false, error: "unknown_metric" };
+  try {
+    const { source, value } = await config.collect(project, range as TimeRangeOption | undefined);
+    await upsertSnapshot({
+      projectId: project.id,
+      metric: metricKey,
+      value,
+      source,
+      ttlMinutes: config.ttlMinutes,
+      collectedAt: new Date(now),
+    });
+    metrics.inc(`snapshots.refresh.success.${config.key}`);
+    return { metric: metricKey, refreshed: true, source };
+  } catch (error) {
+    metrics.inc(`snapshots.refresh.error.${config.key}`);
+    const message = error instanceof Error ? error.message : String(error);
+    return { metric: metricKey, refreshed: false, error: message };
+  }
+}
+
 export async function refreshSnapshotsForProject(
   project: ProjectContext,
   options: { now?: number; force?: boolean; ranges?: TimeRangeOption[] } = {}
@@ -191,11 +226,38 @@ export async function ensureFreshSnapshot(
     now?: number;
     ttlMinutes?: number;
     fallbackCollect?: () => Promise<{ source: string; value: Prisma.JsonValue }>;
+    asyncRefresh?: boolean;
+    placeholder?: () => Prisma.JsonValue | Promise<Prisma.JsonValue>;
   }
 ) {
   const now = options.now ?? Date.now();
   const snapshot = await getFreshSnapshot(project.id, metricKey, now);
   if (snapshot) return snapshot;
+
+  // If async refresh is enabled, return immediately and trigger background refresh
+  if (options.asyncRefresh) {
+    const stale = await getLatestSnapshot(project.id, metricKey);
+    // Fire and forget refresh
+    setTimeout(() => {
+      refreshMetricKey(project, metricKey, Date.now()).catch(() => undefined);
+    }, 0);
+
+    if (stale) return stale;
+    // No snapshot at all: return placeholder if provided, else null
+    if (options.placeholder) {
+      const value = await options.placeholder();
+      await upsertSnapshot({
+        projectId: project.id,
+        metric: metricKey,
+        value,
+        source: "synthetic",
+        ttlMinutes: options.ttlMinutes ?? 5,
+        collectedAt: new Date(now),
+      });
+      return getFreshSnapshot(project.id, metricKey, now);
+    }
+    return null;
+  }
 
   if (!options.fallbackCollect) return null;
 

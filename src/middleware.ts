@@ -4,6 +4,26 @@ import { NextResponse } from "next/server";
 // Clerk requires middleware to be present so that auth() in server components
 // can read the request's auth state. This middleware will run for matched paths
 // and simply continue unless you want to add custom logic (e.g., org routing).
+// Simple per-IP fixed-window rate limiting for selected API routes
+type RLState = { count: number; windowStart: number };
+const RL_WINDOW_MS = 60_000;
+const RL_LIMIT = Number(process.env.API_RATE_LIMIT_PER_MIN || 60);
+const rlMap = new Map<string, RLState>();
+
+function getClientIp(req: Request) {
+	const h = req.headers;
+	return (
+		h.get("x-real-ip") ||
+		(h.get("x-forwarded-for")?.split(",")[0].trim() ?? "local") ||
+		h.get("cf-connecting-ip") ||
+		"local"
+	);
+}
+
+function shouldRateLimit(pathname: string) {
+	return pathname.startsWith("/api/tokens");
+}
+
 export default clerkMiddleware(async (auth, req) => {
 	// Convenience redirect: if user is signed in and hits "/" or "/sign-in", send to dashboard.
 	const { userId } = await auth();
@@ -14,7 +34,31 @@ export default clerkMiddleware(async (auth, req) => {
 		return NextResponse.redirect(dashUrl);
 	}
 
-	// Generate a per-request nonce. UUID is sufficient entropy and CSP allows any opaque string.
+		// Basic API rate limiting for selected routes
+		try {
+			const pathname = req.nextUrl.pathname;
+			if (shouldRateLimit(pathname)) {
+				const ip = getClientIp(req);
+				const key = `${ip}:${Math.floor(Date.now() / RL_WINDOW_MS)}`;
+				const state = rlMap.get(key) || { count: 0, windowStart: Date.now() };
+				state.count += 1;
+				rlMap.set(key, state);
+				// Opportunistically cleanup old windows
+				for (const [k, v] of rlMap.entries()) {
+					if (Date.now() - v.windowStart > RL_WINDOW_MS * 2) rlMap.delete(k);
+				}
+				if (state.count > RL_LIMIT) {
+					return new NextResponse(JSON.stringify({ error: "rate_limited" }), {
+						status: 429,
+						headers: { "content-type": "application/json", "retry-after": "60" },
+					});
+				}
+			}
+		} catch {
+			// Never fail middleware due to limiter logic
+		}
+
+		// Generate a per-request nonce. UUID is sufficient entropy and CSP allows any opaque string.
 	const nonce = crypto.randomUUID();
 	// Forward the nonce to the app so Next can apply it to inline scripts/styles it generates
 	const requestHeaders = new Headers(req.headers);

@@ -2,6 +2,7 @@ import { duneService } from "./duneService";
 import { providerService } from "./providerService";
 import { holdersService } from "./holdersService";
 import { thegraphService } from "./thegraphService";
+import { prisma } from "@/server/db";
 
 export type TimeRangeOption = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -124,11 +125,49 @@ export async function assembleVolumeMetric(project: ProjectContext, timeRange: T
   const pv = await providerService.priceAndVolume(project.contractAddress, project.chain);
   const days = rangeToDays(timeRange);
   let series: VolumeSeriesPoint[] = [];
+
+  // Prefer internal aggregated token volume (sum of transfer values per day) if available
   try {
-    const res = await thegraphService.tokenDailyVolumeUSD(project.contractAddress, project.chain, timeRange);
-    series = res.series.map((p) => ({ date: p.date, volume: p.volume }));
+    const token = await prisma.token.findFirst({ where: { contractAddressChecksum: project.contractAddress, chain: project.chain } });
+    if (token) {
+      const start = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
+      start.setUTCDate(start.getUTCDate() - (days - 1));
+      const rows = await prisma.$queryRawUnsafe<Array<{ date: string; volume: string }>>(
+        `SELECT to_char(date_trunc('day', "blockTimestamp")::date, 'YYYY-MM-DD') AS date, COALESCE(SUM("value"), 0)::text AS volume
+         FROM "Transfer" WHERE "tokenId"='${token.id}' AND "blockTimestamp" >= '${start.toISOString()}'
+         GROUP BY 1 ORDER BY 1`
+      );
+      if (rows && rows.length > 0) {
+        const dec = token.decimals ?? 0;
+        const norm = (raw: string) => {
+          if (!dec) return Number(raw);
+          // normalize big integer string to decimal number; for charts this is acceptable
+          const s = raw.replace(/^[+]/, "");
+          const neg = s.startsWith("-");
+          const t = neg ? s.slice(1) : s;
+          const pad = dec - t.length + 1;
+          const full = pad > 0 ? "0".repeat(pad) + t : t;
+          const i = full.length - dec;
+          const intPart = i > 0 ? full.slice(0, i) : "0";
+          const frac = i > 0 ? full.slice(i) : full.padStart(dec, "0");
+          const n = Number(`${neg ? "-" : ""}${intPart}.${frac}`);
+          return Number.isFinite(n) ? n : 0;
+        };
+        series = rows.map(r => ({ date: r.date, volume: norm(String(r.volume)) }));
+      }
+    }
   } catch {
-    // ignore
+    // ignore internal errors
+  }
+
+  // External providers if internal is empty
+  if (!series || series.length === 0) {
+    try {
+      const res = await thegraphService.tokenDailyVolumeUSD(project.contractAddress, project.chain, timeRange);
+      series = res.series.map((p) => ({ date: p.date, volume: p.volume }));
+    } catch {
+      // ignore
+    }
   }
   if (!series || series.length === 0) {
     // Minor fallback to Dune mock to preserve shape
@@ -143,7 +182,7 @@ export async function assembleVolumeMetric(project: ProjectContext, timeRange: T
     volume24h: pv.volume24h,
     volumeChange: last - prev,
     chartData: series,
-    source: series.length > 0 ? "thegraph" : (pv.source || "synthetic"),
+    source: series.length > 0 ? (series[0] && typeof series[0].volume === "number" ? "internal" : "thegraph") : (pv.source || "synthetic"),
   };
 }
 

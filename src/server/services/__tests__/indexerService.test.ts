@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockFindFirst = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
+const mockUpsert = vi.fn();
 
 vi.mock('@/server/db', () => ({
   prisma: {
@@ -11,6 +12,7 @@ vi.mock('@/server/db', () => ({
       findFirst: mockFindFirst,
       create: mockCreate,
       update: mockUpdate,
+      upsert: mockUpsert,
     },
   },
 }));
@@ -31,7 +33,7 @@ beforeEach(() => {
 
 describe('upsertTokenForIndexing', () => {
   it("returns existing 'complete' token unchanged", async () => {
-    const existing = { id: 'tok-complete', status: 'complete', lastBlockScanned: BigInt(123) } as any;
+  const existing = { id: 'tok-complete', status: 'complete', lastBlockScanned: BigInt(123) } as unknown as Record<string, unknown>;
     mockFindFirst.mockResolvedValueOnce(existing);
 
     const res = await upsertTokenForIndexing({ contractAddress: '0x0000000000000000000000000000000000000001', chain: 'ethereum' });
@@ -44,13 +46,20 @@ describe('upsertTokenForIndexing', () => {
 
   it('creates a new token when none exists and computes lastBlockScanned from head', async () => {
     mockFindFirst.mockResolvedValueOnce(null);
-    const created = { id: 'tok-new', contractAddress: '0x0000000000000000000000000000000000000001', contractAddressChecksum: '0x0000000000000000000000000000000000000001', chain: 'ethereum', lastBlockScanned: BigInt(50000), status: 'pending' } as any;
-    mockCreate.mockResolvedValueOnce(created);
+    const created = {
+      id: 'tok-new',
+      contractAddress: '0x0000000000000000000000000000000000000001',
+      contractAddressChecksum: '0x0000000000000000000000000000000000000001',
+      chain: 'ethereum',
+      lastBlockScanned: BigInt(50000),
+      status: 'pending',
+    } as unknown as Record<string, unknown>;
+    mockUpsert.mockResolvedValueOnce(created);
 
     const res = await upsertTokenForIndexing({ contractAddress: '0x0000000000000000000000000000000000000001', chain: 'ethereum' });
 
     expect(mockFindFirst).toHaveBeenCalled();
-    expect(mockCreate).toHaveBeenCalled();
+    expect(mockUpsert).toHaveBeenCalled();
     // The created object should be returned
     expect(res).toEqual(created);
   });
